@@ -7,11 +7,13 @@ const path = require('path');
 const fs = require('fs');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
+const compression = require('compression');
 const morgan = require('morgan');
 const crypto = require('crypto');
 
 const isProduction = process.env.NODE_ENV === 'production' || process.env.VERCEL_ENV === 'production';
 const MIN_SECRET_LENGTH = 32;
+const PUBLIC_SITE_URL = String(process.env.PUBLIC_SITE_URL || 'https://leetec.online').trim().replace(/\/$/, '');
 const htmlTemplate = fs.readFileSync(path.join(__dirname, 'index.html'), 'utf8');
 const hashDirective = value => `'sha256-${crypto.createHash('sha256').update(value).digest('base64')}'`;
 const inlineHandlerHashes = [...htmlTemplate.matchAll(/\bon[a-z]+\s*=\s*["']([^"']*)["']/gi)].map(match => hashDirective(match[1]));
@@ -73,6 +75,7 @@ app.use((req, res, next) => {
 });
 app.use(helmet({ contentSecurityPolicy: false }));
 app.use(cors({ origin(origin, callback) { if (!origin || corsOrigins.has(origin)) return callback(null, true); return callback(new Error('CORS origin is not allowed')); }, credentials: false }));
+app.use(compression());
 app.use(express.json({ limit: '15mb' }));
 app.use(express.urlencoded({ extended: true, limit: '15mb' }));
 app.use(morgan('dev'));
@@ -137,7 +140,15 @@ function sessionHash(req) { return crypto.createHash('sha256').update(`${req.ip}
 function ipHash(req) { return crypto.createHash('sha256').update(`${req.ip}|${requiredEnv('JWT_SECRET')}`).digest('hex').slice(0, 16); }
 function recordAudit(req, event, success, username = '') { return SecurityAudit.create({ event, success, username: String(username || '').slice(0, 80), device: deviceFromAgent(req.headers['user-agent']), userAgent: String(req.headers['user-agent'] || '').slice(0, 240), ipHash: ipHash(req) }).catch(() => {}); }
 
-app.get('/api/config', async (req, res) => res.json(publicSettings(await readSiteSettings())));
+app.get('/leetec-hub-og.svg', (req, res) => res.type('image/svg+xml').set('Cache-Control', 'public, max-age=86400, immutable').sendFile(path.join(__dirname, 'leetec-hub-og.svg')));
+app.get('/robots.txt', (req, res) => res.type('text/plain').set('Cache-Control', 'public, max-age=3600').send(`User-agent: *
+Allow: /
+Disallow: /api/
+Disallow: /admin
+Sitemap: ${PUBLIC_SITE_URL}/sitemap.xml
+`));
+app.get('/sitemap.xml', (req, res) => res.type('application/xml').set('Cache-Control', 'public, max-age=3600').send(`<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc>${PUBLIC_SITE_URL}/</loc><changefreq>daily</changefreq><priority>1.0</priority></url></urlset>`));
+app.get('/api/config', async (req, res) => { res.set('Cache-Control', 'public, s-maxage=60, stale-while-revalidate=300'); res.json(publicSettings(await readSiteSettings())); });
 app.get('/api/projects', async (req, res) => { try { const projects = await Project.find({ visible: true }).sort({ featured: -1, order: 1, createdAt: -1 }).limit(24).lean(); res.set('Cache-Control', 's-maxage=60, stale-while-revalidate=300'); res.json(projects); } catch { res.status(500).json({ error: 'Server error' }); } });
 app.get('/api/products', async (req, res) => { try { const products = await Product.find().sort({ featured: -1, createdAt: -1 }).limit(24).lean(); res.set('Cache-Control', 's-maxage=60, stale-while-revalidate=300'); res.json(products); } catch { res.status(500).json({ error: 'Server error' }); } });
 app.get('/api/posts', async (req, res) => { try { const posts = await Post.find({ published: true }).sort({ createdAt: -1 }).limit(12).lean(); res.set('Cache-Control', 's-maxage=60, stale-while-revalidate=300'); res.json(posts); } catch { res.status(500).json({ error: 'Server error' }); } });
@@ -170,6 +181,6 @@ app.post('/api/admin/posts', authMiddleware, (req, res) => crud(Post, req, res, 
 app.put('/api/admin/posts/:id', authMiddleware, (req, res) => crud(Post, req, res, 'update'));
 app.delete('/api/admin/posts/:id', authMiddleware, (req, res) => crud(Post, req, res, 'delete'));
 app.use((err, req, res, next) => { if (err?.message === 'CORS origin is not allowed') return res.status(403).json({ error: 'CORS origin is not allowed' }); next(err); });
-app.get('*', (req, res) => res.type('html').send(htmlTemplate.replaceAll('__CSP_NONCE__', res.locals.cspNonce)));
+app.get('*', (req, res) => res.type('html').send(htmlTemplate.replaceAll('__CSP_NONCE__', res.locals.cspNonce).replaceAll('__PUBLIC_SITE_URL__', PUBLIC_SITE_URL)));
 if (process.env.NODE_ENV !== 'production') app.listen(process.env.PORT || 3000, () => console.log(`Lee Tech running on http://localhost:${process.env.PORT || 3000}`));
 module.exports = app;
