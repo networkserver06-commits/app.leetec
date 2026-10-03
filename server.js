@@ -13,7 +13,7 @@ const crypto = require('crypto');
 
 const isProduction = process.env.NODE_ENV === 'production' || process.env.VERCEL_ENV === 'production';
 const MIN_SECRET_LENGTH = 32;
-const PUBLIC_SITE_URL = String(process.env.PUBLIC_SITE_URL || 'https://leetec.online').trim().replace(/\/$/, '');
+const PUBLIC_SITE_URL = String(process.env.PUBLIC_SITE_URL || 'https://app.leetec.online').trim().replace(/\/$/, '');
 const htmlTemplate = fs.readFileSync(path.join(__dirname, 'index.html'), 'utf8');
 const hashDirective = value => `'sha256-${crypto.createHash('sha256').update(value).digest('base64')}'`;
 const inlineHandlerHashes = [...htmlTemplate.matchAll(/\bon[a-z]+\s*=\s*["']([^"']*)["']/gi)].map(match => hashDirective(match[1]));
