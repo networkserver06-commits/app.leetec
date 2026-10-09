@@ -1,12 +1,5 @@
 # LEE TECH WEB
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Working with the HTML Video Element</title>
-</head>
-<body>
+
   <h1>Working with the HTML Video Element</h1>
   <video
     width="640"
@@ -29,5 +22,3 @@
     >
 <source src="https://cdn.freecodecamp.org/curriculum/labs/mapmethod.mov" type="video/quicktime">    
   </video>
-</body>
-</html>
